@@ -2,6 +2,13 @@ name: Test Bot
 
 on:
   workflow_dispatch:
+    inputs:
+      forecaster_model:
+        description: "Forecaster model (empty = repository variable FORECASTER_MODEL, then the main.py default)"
+        default: ""
+      researcher_model:
+        description: "Researcher model (empty = repository variable RESEARCHER_MODEL, then the main.py default)"
+        default: ""
 
 # Add concurrency group to prevent parallel runs
 concurrency:
@@ -35,6 +42,14 @@ jobs:
       #     key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
+      # Exact spend of this run = usage after minus usage before (prints numbers only, never the key).
+      - name: OpenRouter credits before
+        run: |
+          curl -s https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+            | python3 -c "import sys, json; d = json.load(sys.stdin).get('data') or {}; print('usage:', d.get('usage'), '| limit:', d.get('limit'), '| limit_remaining:', d.get('limit_remaining'))" \
+            || echo "could not read OpenRouter key info"
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       - name: Run bot
         run: |
           poetry run python main.py --mode test_questions
@@ -49,3 +64,14 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+          FORECASTER_MODEL: ${{ inputs.forecaster_model || vars.FORECASTER_MODEL }}
+          RESEARCHER_MODEL: ${{ inputs.researcher_model || vars.RESEARCHER_MODEL }}
+      - name: OpenRouter credits after
+        if: always()
+        run: |
+          sleep 30
+          curl -s https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+            | python3 -c "import sys, json; d = json.load(sys.stdin).get('data') or {}; print('usage:', d.get('usage'), '| limit:', d.get('limit'), '| limit_remaining:', d.get('limit_remaining'))" \
+            || echo "could not read OpenRouter key info"
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

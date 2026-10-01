@@ -2,8 +2,9 @@ name: Forecast on new AI tournament questions
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "7,27,47 * * * *" # every 20 min, offset off the hour. Make sure to skip already-forecasted questions!
+  # Schedule stays off until the Test Bot run passes with the chosen model.
+  # schedule:
+  #   - cron: "7,27,47 * * * *" # every 20 min, offset off the hour. Make sure to skip already-forecasted questions!
 
 # Add concurrency group to prevent parallel runs
 concurrency:
@@ -51,3 +52,5 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+          FORECASTER_MODEL: ${{ vars.FORECASTER_MODEL }}
+          RESEARCHER_MODEL: ${{ vars.RESEARCHER_MODEL }}

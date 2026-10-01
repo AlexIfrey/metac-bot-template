@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -704,9 +705,31 @@ if __name__ == "__main__":
     publish_to_metaculus = True
     print_startup_banner(run_mode, will_publish=publish_to_metaculus)
 
-    # Configure the bot. The `llms=` block below is commented out to use
-    # whichever default models forecasting-tools picks based on your env vars;
-    # uncomment and edit to pin specific models.
+    # Models come from the FORECASTER_MODEL / RESEARCHER_MODEL env vars (set as
+    # GitHub repository variables) so they can be switched without code changes.
+    # Per-provider settings mirror the Metac Bots in forecasting-tools' run_bots.py.
+    # The template's default researcher (openai/gpt-4o-search-preview) has no
+    # endpoints on OpenRouter anymore, so research uses native web search (":online").
+    forecaster_model = (
+        os.getenv("FORECASTER_MODEL") or "openrouter/openai/gpt-5.6-sol"
+    )
+    researcher_model = (
+        os.getenv("RESEARCHER_MODEL") or "openrouter/openai/gpt-5.6-sol:online"
+    )
+
+    def make_forecaster_llm(model: str) -> GeneralLlm:
+        if "google/" in model:
+            return GeneralLlm(model=model, temperature=None, timeout=5 * 60)
+        return GeneralLlm(
+            model=model,
+            reasoning_effort="high",
+            temperature=None,
+            timeout=15 * 60,
+        )
+
+    logger.info(
+        f"Forecaster model: {forecaster_model} | Researcher model: {researcher_model}"
+    )
     template_bot = FallTemplateBot2026(
         research_reports_per_question=1,
         predictions_per_research_report=5,
@@ -715,17 +738,14 @@ if __name__ == "__main__":
         folder_to_save_reports_to=None,
         skip_previously_forecasted_questions=True,
         extra_metadata_in_explanation=True,
-        # llms={
-        #     "default": GeneralLlm(
-        #         model="openrouter/openai/gpt-4o",
-        #         temperature=0.3,
-        #         timeout=40,
-        #         allowed_tries=2,
-        #     ),
-        #     "summarizer": "openai/gpt-4o-mini",
-        #     "researcher": "asknews/news-summaries",
-        #     "parser": "openai/gpt-4o-mini",
-        # },
+        llms={
+            "default": make_forecaster_llm(forecaster_model),
+            "summarizer": "openrouter/openai/gpt-4o-mini",
+            "researcher": GeneralLlm(
+                model=researcher_model, temperature=None, timeout=5 * 60
+            ),
+            "parser": "openrouter/openai/gpt-4o-mini",
+        },
     )
 
     # Per-mode tournament URL shown in the summary banner footer. These
