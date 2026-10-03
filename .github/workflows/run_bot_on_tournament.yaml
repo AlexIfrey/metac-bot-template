@@ -40,7 +40,8 @@ jobs:
         run: poetry install --no-interaction --no-root
       - name: Run bot
         run: |
-          poetry run python main.py
+          set -o pipefail
+          poetry run python main.py 2>&1 | tee bot_output.log
         # this reads the environment variables from the github repository.
         # Store under Settings --> Secrets and variables --> Actions
         env:
@@ -54,3 +55,18 @@ jobs:
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
           FORECASTER_MODEL: ${{ vars.FORECASTER_MODEL }}
           RESEARCHER_MODEL: ${{ vars.RESEARCHER_MODEL }}
+      # Credit usage after the run (numbers only, never the key); the trend across runs shows the spend.
+      - name: OpenRouter credits after
+        if: always()
+        run: |
+          sleep 30
+          curl -s https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+            | python3 -c "import sys, json; d = json.load(sys.stdin).get('data') or {}; print('after usage:', d.get('usage'), '| limit:', d.get('limit'), '| limit_remaining:', d.get('limit_remaining'))" \
+            | tee -a openrouter_credits.log \
+            || echo "could not read OpenRouter key info" | tee -a openrouter_credits.log
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # Job logs need a GitHub sign-in to read; annotations are public (no forecast values in them).
+      - name: Run summary annotation
+        if: always()
+        run: python3 .github/scripts/annotate_run.py "Tournament run summary" bot_output.log openrouter_credits.log

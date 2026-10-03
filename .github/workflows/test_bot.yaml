@@ -46,13 +46,15 @@ jobs:
       - name: OpenRouter credits before
         run: |
           curl -s https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY" \
-            | python3 -c "import sys, json; d = json.load(sys.stdin).get('data') or {}; print('usage:', d.get('usage'), '| limit:', d.get('limit'), '| limit_remaining:', d.get('limit_remaining'))" \
-            || echo "could not read OpenRouter key info"
+            | python3 -c "import sys, json; d = json.load(sys.stdin).get('data') or {}; print('before usage:', d.get('usage'), '| limit:', d.get('limit'), '| limit_remaining:', d.get('limit_remaining'))" \
+            | tee -a openrouter_credits.log \
+            || echo "could not read OpenRouter key info" | tee -a openrouter_credits.log
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       - name: Run bot
         run: |
-          poetry run python main.py --mode test_questions
+          set -o pipefail
+          poetry run python main.py --mode test_questions 2>&1 | tee bot_output.log
         # this reads the environment variables from the github repository.
         # Store under Settings --> Secrets and variables --> Actions
         env:
@@ -71,7 +73,12 @@ jobs:
         run: |
           sleep 30
           curl -s https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY" \
-            | python3 -c "import sys, json; d = json.load(sys.stdin).get('data') or {}; print('usage:', d.get('usage'), '| limit:', d.get('limit'), '| limit_remaining:', d.get('limit_remaining'))" \
-            || echo "could not read OpenRouter key info"
+            | python3 -c "import sys, json; d = json.load(sys.stdin).get('data') or {}; print('after usage:', d.get('usage'), '| limit:', d.get('limit'), '| limit_remaining:', d.get('limit_remaining'))" \
+            | tee -a openrouter_credits.log \
+            || echo "could not read OpenRouter key info" | tee -a openrouter_credits.log
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # Job logs need a GitHub sign-in to read; annotations are public (no forecast values in them).
+      - name: Run summary annotation
+        if: always()
+        run: python3 .github/scripts/annotate_run.py "Test run summary" bot_output.log openrouter_credits.log
