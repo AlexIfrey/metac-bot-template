@@ -788,11 +788,23 @@ if __name__ == "__main__":
         # The bot-testing-area tournament contains all question types and is
         # the recommended target for smoke-testing your bot.
         # https://www.metaculus.com/tournament/bot-testing-area/
+        # Only the types used in FutureEval tournaments (binary, numeric incl.
+        # discrete, multiple choice), so a model test spends fewer LLM credits.
         template_bot.skip_previously_forecasted_questions = False
-        forecast_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                "bot-testing-area", return_exceptions=True
+        test_questions = [
+            question
+            for question in client.get_all_open_questions_from_tournament(
+                "bot-testing-area"
             )
+            if isinstance(
+                question, (BinaryQuestion, NumericQuestion, MultipleChoiceQuestion)
+            )
+        ]
+        logger.info(
+            f"Testing on {len(test_questions)} questions of tournament types"
+        )
+        forecast_reports = asyncio.run(
+            template_bot.forecast_questions(test_questions, return_exceptions=True)
         )
 
     template_bot.log_report_summary(forecast_reports)
