@@ -5,32 +5,50 @@ logs. Only models, question counts, costs, credit usage and errors are passed
 on, never forecast values, so forecasts on open questions are not exposed
 before those questions close.
 
+GitHub cuts long annotation messages, so summary lines come first and error
+lines last, shortened.
+
 Usage: python annotate_run.py "<title>" <log file> [<log file> ...]
 """
 
 import re
 import sys
 
-KEY_LINE = re.compile(
+SUMMARY_LINE = re.compile(
     r"Forecaster model|Testing on|Retrieved \d+ questions|Total cost estimated|"
-    r"Average cost per question|Error while processing|No new questions|"
-    r"Bot submitted|Partial|attempt\(s\) failed|✅|Setup problems|is missing|"
-    r"usage:|could not read OpenRouter|Traceback|^[A-Za-z_.]*(Error|Exception)\b"
+    r"Average cost per question|No new questions|Bot submitted|Partial|"
+    r"attempt\(s\) failed|✅|Setup problems|is missing|usage:|"
+    r"could not read OpenRouter"
 )
-MAX_LINES = 40
-MAX_LINE_LENGTH = 300
+ERROR_LINE = re.compile(
+    r"Error while processing|Traceback|^[A-Za-z_.]*(Error|Exception)\b"
+)
+MAX_SUMMARY_LINES = 25
+MAX_ERROR_LINES = 8
+MAX_SUMMARY_LINE_LENGTH = 250
+MAX_ERROR_LINE_LENGTH = 160
+MAX_MESSAGE_LENGTH = 3500
 
 
 def main(title: str, log_paths: list[str]) -> None:
-    lines: list[str] = []
+    summary_lines: list[str] = []
+    error_lines: list[str] = []
     for path in log_paths:
         try:
             with open(path, encoding="utf-8", errors="replace") as log_file:
-                lines += [line.rstrip() for line in log_file if KEY_LINE.search(line)]
+                for line in log_file:
+                    line = line.rstrip()
+                    if SUMMARY_LINE.search(line):
+                        summary_lines.append(line[:MAX_SUMMARY_LINE_LENGTH])
+                    elif ERROR_LINE.search(line):
+                        error_lines.append(line[:MAX_ERROR_LINE_LENGTH])
         except FileNotFoundError:
-            lines.append(f"{path}: not found")
-    message = "\n".join(line[:MAX_LINE_LENGTH] for line in lines[:MAX_LINES])
-    message = message or "no matching lines"
+            summary_lines.append(f"{path}: not found")
+    lines = summary_lines[:MAX_SUMMARY_LINES]
+    if error_lines:
+        lines.append(f"--- errors: {len(error_lines)} line(s), first {MAX_ERROR_LINES} ---")
+        lines += error_lines[:MAX_ERROR_LINES]
+    message = "\n".join(lines)[:MAX_MESSAGE_LENGTH] or "no matching lines"
     message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"::notice title={title}::{message}")
 

@@ -81,4 +81,4 @@ jobs:
       # Job logs need a GitHub sign-in to read; annotations are public (no forecast values in them).
       - name: Run summary annotation
         if: always()
-        run: python3 .github/scripts/annotate_run.py "Test run summary" bot_output.log openrouter_credits.log
+        run: python3 .github/scripts/annotate_run.py "Test run summary" openrouter_credits.log bot_output.log
